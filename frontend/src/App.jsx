@@ -8,9 +8,13 @@ import {
 import Auth from "./pages/auth";
 import Chat from "./pages/chat";
 import Profile from "./pages/profile";
+import ResetPassword from "./pages/auth/ResetPassword";
 import AuthRoute from "./routes/AuthRoute";
 import PrivateRoute from "./routes/PrivateRoute";
 import { useSelector } from "react-redux";
+import { CallProvider } from "./contexts/CallContext";
+import ZegoCall from "./components/fragments/ZegoCall";
+import IncomingCallModal from "./components/fragments/IncomingCallModal";
 import { selectedUserData, setUserData } from "./store/slices/auth-slices";
 
 import { HOST } from "./utils/constant";
@@ -65,33 +69,41 @@ function App() {
 
   return (
     <BrowserRouter>
-      <Routes>
-        <Route
-          path="/auth"
-          element={
-            <AuthRoute>
-              <Auth />
-            </AuthRoute>
-          }
-        />
-        <Route
-          path="/chat"
-          element={
-            <PrivateRoute>
-              <Chat />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/profile"
-          element={
-            <PrivateRoute>
-              <Profile />
-            </PrivateRoute>
-          }
+      <CallProvider>
+        <ZegoCall />
+        <IncomingCallModal />
+        <Routes>
+          <Route
+            path="/auth"
+            element={
+              <AuthRoute>
+                <Auth />
+              </AuthRoute>
+            }
+          />
+          <Route
+            path="/chat"
+            element={
+              <PrivateRoute>
+                <Chat />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <PrivateRoute>
+                <Profile />
+              </PrivateRoute>
+            }
+          />
+          <Route
+          path="/reset-password/:token"
+          element={<ResetPassword />}
         />
         <Route path="*" element={<Navigate to={"/auth"} />} />
-      </Routes>
+        </Routes>
+      </CallProvider>
     </BrowserRouter>
   );
 }

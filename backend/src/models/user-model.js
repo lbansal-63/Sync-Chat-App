@@ -9,8 +9,16 @@ const UserSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: [true, "Email is Required"],
+    required: false,
   },
+  googleId: {
+    type: String,
+    required: false,
+    unique: true,
+    sparse: true, // Allows multiple null values
+  },
+  resetPasswordToken: String,
+  resetPasswordExpire: Date,
   firstName: {
     type: String,
     required: false,

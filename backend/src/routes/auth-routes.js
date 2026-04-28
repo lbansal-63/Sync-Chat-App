@@ -9,6 +9,9 @@ import {
   addProfileImage,
   removeProfileImage,
   logout,
+  googleLogin,
+  forgotPassword,
+  resetPassword,
 } from "../controllers/auth-controller.js";
 import { upload } from "../util/multer.js";
 
@@ -27,5 +30,8 @@ authRoutes.post(
 
 authRoutes.delete("/remove-profile-image", verifyToken, removeProfileImage);
 authRoutes.post("/logout", logout);
+authRoutes.post("/google-login", googleLogin);
+authRoutes.post("/forgot-password", forgotPassword);
+authRoutes.post("/reset-password/:token", resetPassword);
 
 export default authRoutes;

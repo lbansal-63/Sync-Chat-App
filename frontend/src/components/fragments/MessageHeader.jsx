@@ -1,6 +1,7 @@
 import { useDispatch, useSelector } from "react-redux";
 import { Avatar } from "@radix-ui/react-avatar";
-import { X, ArrowLeft } from "lucide-react";
+import { X, ArrowLeft, Phone, Video } from "lucide-react";
+import { useCall } from "@/contexts/CallContext";
 import { closeChat, setChatData } from "@/store/slices/chat-slices";
 import { AvatarImage } from "../ui/avatar";
 import { splitName } from "./NewDm";
@@ -11,6 +12,7 @@ const MessageHeader = () => {
   const chatData = useSelector((state) => state.chat.chatData);
   const chatType = useSelector((state) => state.chat.chatType);
   const onlineUsers = useSelector((state) => state.users.onlineUsers);
+  const { startCall } = useCall();
 
   return (
     <div className="h-[8vh] sm:h-[10vh] border-b border-white/5 flex items-center py-2 px-3 sm:px-6 md:px-8 bg-[#1c1d25]/80 backdrop-blur-sm">
@@ -84,6 +86,24 @@ const MessageHeader = () => {
           )}
         </div>
         <div className="flex-center gap-3 sm:gap-5">
+          {chatType === "contact" && (
+            <>
+              <button
+                onClick={() => startCall(chatData, false)}
+                className="text-neutral-500 hover:text-[#8417ff] p-1.5 sm:p-2 rounded-lg hover:bg-[#8417ff]/10 focus:border-none focus:outline-none duration-200 transition-all"
+                title="Audio Call"
+              >
+                <Phone className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
+              <button
+                onClick={() => startCall(chatData, true)}
+                className="text-neutral-500 hover:text-[#8417ff] p-1.5 sm:p-2 rounded-lg hover:bg-[#8417ff]/10 focus:border-none focus:outline-none duration-200 transition-all"
+                title="Video Call"
+              >
+                <Video className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
+            </>
+          )}
           <button
             onClick={() => {
               dispatch(setChatData(undefined));

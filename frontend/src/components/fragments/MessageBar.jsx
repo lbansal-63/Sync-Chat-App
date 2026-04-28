@@ -11,7 +11,7 @@ import {
 import { HOST } from "@/utils/constant";
 import axios from "axios";
 import EmojiPicker from "emoji-picker-react";
-import { Paperclip, SendHorizonal, Sticker, Image, X } from "lucide-react";
+import { Paperclip, SendHorizonal, Sticker, Image, X, Mic, MicOff, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useDispatch } from "react-redux";
 import { useSelector } from "react-redux";
@@ -28,6 +28,9 @@ const MessageBar = () => {
   const userData = useSelector(selectedUserData);
   const socket = useSocket();
   const [isEmojiPicker, setIsEmojiPicker] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState(null);
+  const [audioChunks, setAudioChunks] = useState([]);
   const dispatch = useDispatch();
 
   const handleAddEmoji = (emoji) => {
@@ -167,6 +170,91 @@ const MessageBar = () => {
     }
   };
 
+  const handleStartRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(chunks, { type: "audio/webm" });
+        const file = new File([audioBlob], "voice_message.webm", { type: "audio/webm" });
+        
+        // Use existing upload logic
+        dispatch(setIsUploading(true));
+        dispatch(setFileUploadingProgress(0));
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+          const res = await axios.post(
+            HOST + "/api/messages/upload-file",
+            formData,
+            {
+              withCredentials: true,
+              onUploadProgress: (event) => {
+                const progress = Math.round((event.loaded * 100) / event.total);
+                dispatch(setFileUploadingProgress(progress));
+              },
+            }
+          );
+
+          if (res.status === 200) {
+            if (chatType === "contact") {
+              socket.emit("sendMessage", {
+                sender: userData._id,
+                recipient: chatData._id,
+                messageType: "audio",
+                content: undefined,
+                fileUrl: res.data.filePath,
+                fileName: "Voice Message",
+                fileSize: file.size,
+                contentType: "audio/webm",
+              });
+            } else if (chatType === "channel") {
+              socket.emit("sendMessage-channel", {
+                sender: userData._id,
+                content: undefined,
+                messageType: "audio",
+                fileUrl: res.data.filePath,
+                fileName: "Voice Message",
+                fileSize: file.size,
+                contentType: "audio/webm",
+                channelId: chatData._id,
+              });
+            }
+          }
+        } catch (error) {
+          toast.error("Failed to upload voice message.");
+        } finally {
+          dispatch(setIsUploading(false));
+          stream.getTracks().forEach(track => track.stop());
+        }
+      };
+
+      recorder.start();
+      setMediaRecorder(recorder);
+      setIsRecording(true);
+      toast.info("Recording started...");
+    } catch (error) {
+      toast.error("Could not access microphone.");
+    }
+  };
+
+  const handleStopRecording = () => {
+    if (mediaRecorder && isRecording) {
+      mediaRecorder.stop();
+      setIsRecording(false);
+      toast.success("Recording finished.");
+    }
+  };
+
   useEffect(() => {
     const handleClickOutSide = (e) => {
       if (emojiRef.current && !emojiRef.current.contains(e.target)) {
@@ -234,6 +322,20 @@ const MessageBar = () => {
             />
           </div>
         </div>
+
+        <button
+          onClick={isRecording ? handleStopRecording : handleStartRecording}
+          className={`${
+            isRecording ? "text-red-500 animate-pulse" : "text-neutral-400"
+          } hover:text-white rounded p-1.5 sm:p-2 focus:border-none focus:outline-none hover:bg-white/10 duration-200 transition-all`}
+          title={isRecording ? "Stop Recording" : "Record Voice Message"}
+        >
+          {isRecording ? (
+            <Square className="w-4 h-4 sm:w-5 sm:h-5" />
+          ) : (
+            <Mic className="w-4 h-4 sm:w-5 sm:h-5" />
+          )}
+        </button>
       </div>
       <button
         onClick={handleSendMessage}

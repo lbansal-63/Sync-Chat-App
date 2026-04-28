@@ -10,6 +10,9 @@ import {
 import { compare } from "bcrypt";
 import { uploadToCloudinary, deleteFromCloudinary } from "../util/multer.js";
 import dotenv from "dotenv";
+import { OAuth2Client } from "google-auth-library";
+import crypto from "crypto";
+import { sendEmail } from "../util/email.js";
 
 dotenv.config();
 
@@ -208,6 +211,142 @@ export const removeProfileImage = async (req, res, next) => {
     res
       .status(200)
       .json({ success: true, message: "Successfully remove image" });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const googleLogin = async (req, res, next) => {
+  try {
+    const { token } = req.body;
+    const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+    
+    const ticket = await client.verifyIdToken({
+      idToken: token,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const { email, sub: googleId, given_name, family_name, picture } = ticket.getPayload();
+
+    let user = await User.findOne({ $or: [{ googleId }, { email }] });
+
+    if (!user) {
+      user = new User({
+        email,
+        googleId,
+        firstName: given_name,
+        lastName: family_name,
+        image: picture,
+        profileSetup: true,
+      });
+      await user.save();
+    } else if (!user.googleId) {
+      // Link google account to existing email account
+      user.googleId = googleId;
+      if (!user.firstName) user.firstName = given_name;
+      if (!user.lastName) user.lastName = family_name;
+      if (!user.image) user.image = picture;
+      await user.save();
+    }
+
+    res.cookie("jwt", createToken(user.email, user.id), {
+      maxAge,
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Login Succesfully with Google",
+      user: {
+        _id: user.id,
+        email: user.email,
+        profileSetup: user.profileSetup,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        image: user.image,
+        color: user.color,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      throw new ResponseError(404, "User not found with this email");
+    }
+
+    // Generate reset token
+    const resetToken = crypto.randomBytes(20).toString("hex");
+    
+    // Hash and set to resetPasswordToken field
+    user.resetPasswordToken = crypto
+      .createHash("sha256")
+      .update(resetToken)
+      .digest("hex");
+
+    // Set expire (1 hour)
+    user.resetPasswordExpire = Date.now() + 60 * 60 * 1000;
+
+    await user.save();
+
+    // Create reset URL
+    const resetUrl = `${process.env.ORIGIN}/reset-password/${resetToken}`;
+
+    const message = `You are receiving this email because you (or someone else) has requested the reset of a password. Please make a put request to: \n\n ${resetUrl}`;
+
+    try {
+      await sendEmail({
+        email: user.email,
+        subject: "Password Reset Token",
+        message,
+        html: `<p>Please click the link below to reset your password:</p><a href="${resetUrl}">${resetUrl}</a>`,
+      });
+
+      res.status(200).json({ success: true, message: "Email sent" });
+    } catch (error) {
+      user.resetPasswordToken = undefined;
+      user.resetPasswordExpire = undefined;
+      await user.save();
+      throw new ResponseError(500, "Email could not be sent");
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const resetPassword = async (req, res, next) => {
+  try {
+    // Get hashed token
+    const resetPasswordToken = crypto
+      .createHash("sha256")
+      .update(req.params.token)
+      .digest("hex");
+
+    const user = await User.findOne({
+      resetPasswordToken,
+      resetPasswordExpire: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      throw new ResponseError(400, "Invalid or expired token");
+    }
+
+    // Set new password
+    user.password = req.body.password;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+
+    await user.save();
+
+    res.status(200).json({ success: true, message: "Password updated successfully" });
   } catch (error) {
     next(error);
   }

@@ -147,6 +147,20 @@ const setupSocket = (server) => {
 
       socket.on("channelCreated", sendChannel);
 
+      socket.on("start-call", ({ to, roomName, type, from }) => {
+        const recipientSocketId = userSocketMap.get(to);
+        if (recipientSocketId) {
+          io.to(recipientSocketId).emit("incoming-call", { roomName, type, from });
+        }
+      });
+
+      socket.on("reject-call", ({ to }) => {
+        const recipientSocketId = userSocketMap.get(to);
+        if (recipientSocketId) {
+          io.to(recipientSocketId).emit("call-rejected");
+        }
+      });
+
       socket.on("sendMessage", sendMessage);
       socket.on("sendMessage-channel", sendMessageChannel);
       socket.on("disconnect", () => disconnect(socket));
